@@ -33,7 +33,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           PROMPT="Review this Mule 4 XML. Does every flow have an error-handler?
-          List each flow name and PASS or FAIL. End with overall PASS or FAIL.
+          List each flow and PASS or FAIL. End with overall PASS or FAIL.
           XML: $FLOW_XML"
 
           RESULT=$(curl -s https://api.openai.com/v1/chat/completions \
@@ -46,10 +46,10 @@ jobs:
             | jq -r '.choices[0].message.content')
 
           echo "================================================"
-          echo "AI Review: $RESULT"
+          echo "AI Review Result: $RESULT"
           echo "================================================"
           echo "$RESULT" | grep -qi "^PASS" || \
-            echo "::warning::AI flagged missing error handlers"
+            echo "::warning::AI flagged potential issues"
 
   # ─────────────────────────────────────────────────────────────
   # JOB 2: BUILD
@@ -102,14 +102,9 @@ jobs:
           SETTINGS
 
       - name: Build application
-        run: |
-          mvn clean package -DskipTests \
-            --no-transfer-progress
-        env:
-          ANYPOINT_USERNAME: ${{ secrets.ANYPOINT_USERNAME }}
-          ANYPOINT_PASSWORD: ${{ secrets.ANYPOINT_PASSWORD }}
+        run: mvn clean package -DskipTests --no-transfer-progress
 
-      - name: Upload JAR artifact
+      - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
           name: mule-app-jar
@@ -169,41 +164,29 @@ jobs:
 
       - name: Deploy to CloudHub 2.0
         run: |
-          mvn clean package deploy -DskipTests \
+          mvn clean package mule:deploy -DskipTests \
             -Danypoint.username=${{ secrets.ANYPOINT_USERNAME }} \
             -Danypoint.password=${{ secrets.ANYPOINT_PASSWORD }} \
-            -DcloudHub2.applicationName=payments-notification-api \
-            -DcloudHub2.target=Cloudhub-US-East-1 \
-            -DcloudHub2.provider=MC \
-            -DcloudHub2.muleVersion=4.6.28 \
-            -DcloudHub2.environment=Sandbox \
-            -DcloudHub2.replicas=1 \
-            -DcloudHub2.replicaSize=0.1 \
             --no-transfer-progress
-        env:
-          ANYPOINT_USERNAME: ${{ secrets.ANYPOINT_USERNAME }}
-          ANYPOINT_PASSWORD: ${{ secrets.ANYPOINT_PASSWORD }}
 
       - name: Wait for app to start
         run: |
-          echo "Waiting 90 seconds for app to start..."
+          echo "Waiting 90 seconds for CloudHub to start the app..."
           sleep 90
 
       - name: Health Check
         run: |
           APP_URL="https://payments-notification-api.cloudhub.io"
-          echo "Checking health at $APP_URL/api/health"
-
+          echo "Health check: $APP_URL/api/health"
           for i in 1 2 3; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              --max-time 30 \
-              "$APP_URL/api/health" || echo "000")
+              --max-time 30 "$APP_URL/api/health" || echo "000")
             echo "Attempt $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then
-              echo "✅ App is UP"
+              echo "✅ App is UP and running!"
+              curl -s "$APP_URL/api/health"
               break
             fi
-            echo "Waiting 30 seconds before retry..."
             sleep 30
           done
 
@@ -213,8 +196,7 @@ jobs:
         run: |
           APP_URL="https://payments-notification-api.cloudhub.io"
 
-          HEALTH=$(curl -s --max-time 30 \
-            "$APP_URL/api/health" \
+          HEALTH=$(curl -s --max-time 30 "$APP_URL/api/health" \
             || echo '{"status":"UNREACHABLE"}')
 
           SUCCESS=$(curl -s --max-time 30 \
@@ -229,10 +211,10 @@ jobs:
               "transactionRef":"SMOKE-REF-001"
             }' || echo '{"error":"unreachable"}')
 
-          PROMPT="Check if these M-Pesa API responses look correct.
+          PROMPT="Verify these M-Pesa API responses look correct.
           Health: $HEALTH
           Success endpoint: $SUCCESS
-          Reply PASS if both look correct, FAIL with reason if not."
+          Reply PASS if correct, FAIL with reason if not."
 
           AI=$(curl -s https://api.openai.com/v1/chat/completions \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
@@ -244,15 +226,14 @@ jobs:
             | jq -r '.choices[0].message.content')
 
           echo "================================================"
-          echo "AI Smoke Test: $AI"
+          echo "✅ AI Smoke Test: $AI"
           echo "================================================"
 
       - name: Deployment Summary
         run: |
           echo "================================================"
           echo "✅ Deployment Complete!"
-          echo "App: payments-notification-api"
-          echo "Runtime: CloudHub 2.0 Sandbox"
-          echo "URL: https://payments-notification-api.cloudhub.io"
+          echo "App:    payments-notification-api"
+          echo "Env:    CloudHub 2.0 — Sandbox"
           echo "Health: https://payments-notification-api.cloudhub.io/api/health"
           echo "================================================"

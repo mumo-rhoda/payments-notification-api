@@ -15,7 +15,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <app.runtime>4.6.28</app.runtime>
-        <mule.maven.plugin.version>4.1.0</mule.maven.plugin.version>
+        <mule.maven.plugin.version>3.8.7</mule.maven.plugin.version>
         <munit.version>2.3.15</munit.version>
     </properties>
 
@@ -27,7 +27,7 @@
                 <version>3.1.0</version>
             </plugin>
 
-            <!-- Mule Maven Plugin with CloudHub 2.0 config -->
+            <!-- Mule Maven Plugin 3.8.7 — supports cloudHub2Deployment -->
             <plugin>
                 <groupId>org.mule.tools.maven</groupId>
                 <artifactId>mule-maven-plugin</artifactId>
@@ -47,19 +47,10 @@
                         <replicas>1</replicas>
                         <replicaSize>0.1</replicaSize>
                         <vCores>0.1</vCores>
-                        <deploymentSettings>
-                            <enforceDeployingReplicasAcrossNodes>false</enforceDeployingReplicasAcrossNodes>
-                            <http>
-                                <inbound>
-                                    <publicUrl>payments-notification-api.cloudhub.io</publicUrl>
-                                </inbound>
-                            </http>
-                        </deploymentSettings>
                         <properties>
                             <http.port>8081</http.port>
                             <api.name>payments-notification-api</api.name>
                             <api.version>v1</api.version>
-                            <anypoint.env>Sandbox</anypoint.env>
                         </properties>
                     </cloudHub2Deployment>
                 </configuration>
