@@ -27,32 +27,15 @@
                 <version>3.1.0</version>
             </plugin>
 
-            <!-- Mule Maven Plugin 3.8.7 — supports cloudHub2Deployment -->
+            <!-- Mule Maven Plugin — no deployment config here -->
+            <!-- All CloudHub 2.0 config passed via command line -->
             <plugin>
                 <groupId>org.mule.tools.maven</groupId>
                 <artifactId>mule-maven-plugin</artifactId>
                 <version>${mule.maven.plugin.version}</version>
                 <extensions>true</extensions>
                 <configuration>
-                    <cloudHub2Deployment>
-                        <uri>https://anypoint.mulesoft.com</uri>
-                        <provider>MC</provider>
-                        <environment>Sandbox</environment>
-                        <target>Cloudhub-US-East-1</target>
-                        <applicationName>payments-notification-api</applicationName>
-                        <muleVersion>${app.runtime}</muleVersion>
-                        <username>${anypoint.username}</username>
-                        <password>${anypoint.password}</password>
-                        <businessGroupId>3cd022dd-275d-4122-b586-529e6a87d319</businessGroupId>
-                        <replicas>1</replicas>
-                        <replicaSize>0.1</replicaSize>
-                        <vCores>0.1</vCores>
-                        <properties>
-                            <http.port>8081</http.port>
-                            <api.name>payments-notification-api</api.name>
-                            <api.version>v1</api.version>
-                        </properties>
-                    </cloudHub2Deployment>
+                    <classifier>mule-application</classifier>
                 </configuration>
             </plugin>
 

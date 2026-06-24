@@ -136,6 +136,12 @@ jobs:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
 
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mule-app-jar
+          path: target/
+
       - name: Create Maven settings.xml
         run: |
           mkdir -p ~/.m2
@@ -163,11 +169,18 @@ jobs:
           SETTINGS
 
       - name: Deploy to CloudHub 2.0
+        env:
+          ANYPOINT_USERNAME: ${{ secrets.ANYPOINT_USERNAME }}
+          ANYPOINT_PASSWORD: ${{ secrets.ANYPOINT_PASSWORD }}
+          ANYPOINT_ORG_ID: ${{ secrets.ANYPOINT_ORG_ID }}
         run: |
-          mvn mule:deploy -DskipTests \
-            -Danypoint.username=${{ secrets.ANYPOINT_USERNAME }} \
-            -Danypoint.password=${{ secrets.ANYPOINT_PASSWORD }} \
-            -Dmule.artifact=target/payments-notification-api-1.0.0-SNAPSHOT-mule-application.jar \
+          JAR_FILE=$(ls target/*.jar | head -1)
+          echo "Deploying: $JAR_FILE"
+
+          mvn mule:deploy \
+            -DmuleDeploy \
+            -Danypoint.username=${ANYPOINT_USERNAME} \
+            -Danypoint.password=${ANYPOINT_PASSWORD} \
             -DcloudHub2Deployment.uri=https://anypoint.mulesoft.com \
             -DcloudHub2Deployment.provider=MC \
             -DcloudHub2Deployment.environment=Sandbox \
@@ -176,7 +189,8 @@ jobs:
             -DcloudHub2Deployment.muleVersion=4.6.28 \
             -DcloudHub2Deployment.replicas=1 \
             -DcloudHub2Deployment.replicaSize=0.1 \
-            -DcloudHub2Deployment.businessGroupId=${{ secrets.ANYPOINT_ORG_ID }} \
+            -DcloudHub2Deployment.businessGroupId=${ANYPOINT_ORG_ID} \
+            -DcloudHub2Deployment.artifact=${JAR_FILE} \
             --no-transfer-progress
 
       - name: Wait for app to start
@@ -186,17 +200,18 @@ jobs:
 
       - name: Health Check
         run: |
-          APP_URL="https://payments-notification-api.cloudhub.io"
+          APP_URL="https://payments-notification-api.us-e1.cloudhub.io"
           echo "Health check: $APP_URL/api/health"
           for i in 1 2 3; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               --max-time 30 "$APP_URL/api/health" || echo "000")
             echo "Attempt $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then
-              echo "✅ App is UP and running!"
+              echo "✅ App is UP!"
               curl -s "$APP_URL/api/health"
               break
             fi
+            echo "Waiting 30 seconds..."
             sleep 30
           done
 
@@ -204,9 +219,10 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          APP_URL="https://payments-notification-api.cloudhub.io"
+          APP_URL="https://payments-notification-api.us-e1.cloudhub.io"
 
-          HEALTH=$(curl -s --max-time 30 "$APP_URL/api/health" \
+          HEALTH=$(curl -s --max-time 30 \
+            "$APP_URL/api/health" \
             || echo '{"status":"UNREACHABLE"}')
 
           SUCCESS=$(curl -s --max-time 30 \
@@ -221,10 +237,13 @@ jobs:
               "transactionRef":"SMOKE-REF-001"
             }' || echo '{"error":"unreachable"}')
 
+          echo "Health: $HEALTH"
+          echo "Success endpoint: $SUCCESS"
+
           PROMPT="Verify these M-Pesa API responses look correct.
           Health: $HEALTH
           Success endpoint: $SUCCESS
-          Reply PASS if correct, FAIL with reason if not."
+          Reply PASS if both correct, FAIL with reason if not."
 
           AI=$(curl -s https://api.openai.com/v1/chat/completions \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
@@ -236,7 +255,7 @@ jobs:
             | jq -r '.choices[0].message.content')
 
           echo "================================================"
-          echo "✅ AI Smoke Test: $AI"
+          echo "AI Smoke Test: $AI"
           echo "================================================"
 
       - name: Deployment Summary
@@ -244,6 +263,7 @@ jobs:
           echo "================================================"
           echo "✅ Deployment Complete!"
           echo "App:    payments-notification-api"
-          echo "Env:    CloudHub 2.0 — Sandbox"
-          echo "Health: https://payments-notification-api.cloudhub.io/api/health"
+          echo "Env:    CloudHub 2.0 Sandbox"
+          echo "URL:    https://payments-notification-api.us-e1.cloudhub.io"
+          echo "Health: https://payments-notification-api.us-e1.cloudhub.io/api/health"
           echo "================================================"
