@@ -167,6 +167,12 @@ jobs:
           mvn clean package mule:deploy -DskipTests \
             -Danypoint.username=${{ secrets.ANYPOINT_USERNAME }} \
             -Danypoint.password=${{ secrets.ANYPOINT_PASSWORD }} \
+            -Dcloudhub2.applicationName=payments-notification-api \
+            -Dcloudhub2.target=Cloudhub-US-East-1 \
+            -Dcloudhub2.muleVersion=4.6.28 \
+            -Dcloudhub2.environment=Sandbox \
+            -Dcloudhub2.replicas=1 \
+            -Dcloudhub2.replicaSize=0.1 \
             --no-transfer-progress
 
       - name: Wait for app to start
