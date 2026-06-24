@@ -172,9 +172,9 @@ jobs:
           </settings>
           SETTINGS
 
-      - name: Deploy to CloudHub 2.0
+      - name: Publish to Exchange then Deploy to CloudHub 2.0
         run: |
-          mvn mule:deploy \
+          mvn clean package deploy mule:deploy -DskipTests \
             -Danypoint.username=${{ secrets.ANYPOINT_USERNAME }} \
             -Danypoint.password=${{ secrets.ANYPOINT_PASSWORD }} \
             -Danypoint.org.id=${{ secrets.ANYPOINT_ORG_ID }} \
