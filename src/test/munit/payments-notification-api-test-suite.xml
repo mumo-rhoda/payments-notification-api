@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+        http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit
+        http://www.mulesoft.org/schema/mule/munit/current/munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools
+        http://www.mulesoft.org/schema/mule/munit-tools/current/munit-tools.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+        http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+        http://www.mulesoft.org/schema/mule/documentation
+        http://www.mulesoft.org/schema/mule/documentation/current/mule-documentation.xsd">
+
+    <munit:config name="payments-notifications-api-test" />
+
+    <!-- TEST 1: Success notification happy path -->
+    <munit:test
+        name="test-success-notification-happy-path"
+        description="Success notification with valid payload">
+        <munit:execution>
+            <ee:transform doc:name="Set Payload">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    transactionId: "TXN-001",
+    phoneNumber: "+254712345678",
+    amount: 500,
+    timestamp: "2026-06-30T10:00:00Z",
+    status: "SUCCESS",
+    transactionRef: "REF-001"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <flow-ref name="post:\notifications\success:api-config" doc:name="Call Flow" />
+        </munit:execution>
+    </munit:test>
+
+    <!-- TEST 2: Missing transactionId returns 400 -->
+    <munit:test
+        name="test-missing-transaction-id"
+        description="Missing transactionId returns validation error">
+        <munit:execution>
+            <ee:transform doc:name="Set Invalid Payload">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    phoneNumber: "+254712345678",
+    amount: 500,
+    timestamp: "2026-06-30T10:00:00Z",
+    status: "SUCCESS"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <flow-ref name="post:\notifications\success:api-config" doc:name="Call Flow" />
+      
+        </munit:execution>
+    </munit:test>
+
+    <!-- TEST 3: Failure notification happy path -->
+    <munit:test
+        name="test-failure-notification-happy-path"
+        description="Failure notification with valid payload">
+        <munit:execution>
+            <ee:transform doc:name="Set Failure Payload">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    transactionId: "TXN-002",
+    phoneNumber: "+254712345678",
+    amount: 500,
+    timestamp: "2026-06-30T10:01:00Z",
+    status: "FAILED",
+    transactionRef: "REF-002"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <flow-ref name="post:\notifications\failure:api-config" doc:name="Call Flow" />
+        </munit:execution>
+    </munit:test>
+
+    <!-- TEST 4: Health check -->
+    <munit:test
+        name="test-health-check"
+        description="Health check returns UP">
+        <munit:execution>
+            <flow-ref name="get:\health:api-config" doc:name="Call Health" />
+   
+
+        </munit:execution>
+    </munit:test>
+
+    <!-- TEST 5: Transaction lookup -->
+    <munit:test
+        name="test-lookup-transaction"
+        description="Transaction lookup returns mock data">
+        <munit:execution>
+            <set-variable
+                variableName="txnId"
+                value="TXN-001"
+                doc:name="Set txnId" />
+            <flow-ref name="get:\notifications\(transactionId):api-config" doc:name="Call Lookup" />
+       
+        </munit:execution>
+    </munit:test>
+
+    <!-- TEST 6: High value transaction -->
+    <munit:test
+        name="test-high-value-transaction"
+        description="High value KES 100000 transaction acknowledged">
+        <munit:execution>
+            <ee:transform doc:name="Set High Value">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    transactionId: "TXN-HIGH-001",
+    phoneNumber: "+254722000000",
+    amount: 100000,
+    timestamp: "2026-06-30T08:00:00Z",
+    status: "SUCCESS",
+    transactionRef: "SAFA-HIGH-001"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <flow-ref name="post:\notifications\success:api-config" doc:name="Call Flow" />
+
+        </munit:execution>
+    </munit:test>
+
+</mule>

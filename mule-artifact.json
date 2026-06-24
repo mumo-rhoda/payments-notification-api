@@ -1,0 +1,16 @@
+{
+  "minMuleVersion": "4.6.0",
+  "javaSpecificationVersions": [
+    "17"
+  ],
+  "name": "payments-notification-api",
+  "configs": [
+    "payments-notification-api.xml"
+  ],
+  "classLoaderModelLoaderDescriptor": {
+    "id": "mule",
+    "attributes": {
+      "exportedResources": []
+    }
+  }
+}

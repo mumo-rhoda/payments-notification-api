@@ -1,0 +1,183 @@
+#%RAML 1.0
+title: payments-notification-api
+version: v1
+baseUri: https://mpesa-payment-api.cloudhub.io/api/{version}
+mediaType: application/json
+protocols: [HTTPS]
+
+documentation:
+  - title: Overview
+    content: |
+      This API receives M-Pesa payment notifications for successful and failed STK push transactions.
+      It provides endpoints for notification intake, health checks, and transaction lookup.
+
+types:
+  PaymentNotification:
+    type: object
+    properties:
+      transactionId:
+        type: string
+        description: Unique M-Pesa transaction identifier.
+        required: true
+      phoneNumber:
+        type: string
+        description: Subscriber phone number in international format.
+        required: true
+      amount:
+        type: number
+        minimum: 1
+        description: Transaction amount in the configured currency.
+        required: true
+      timestamp:
+        type: string
+        description: ISO 8601 timestamp when the notification was generated.
+        required: true
+      status:
+        type: string
+        enum: [SUCCESS, FAILED, PENDING]
+        description: Transaction processing status.
+        required: true
+      transactionRef:
+        type: string
+        maxLength: 36
+        description: Reference assigned by the merchant or payment gateway.
+        required: true
+      merchantCode:
+        type: string
+        description: Optional merchant identifier.
+        required: false
+    example:
+      transactionId: "ABC123456789"
+      phoneNumber: "+254712345678"
+      amount: 2500.50
+      timestamp: "2026-06-24T12:34:56Z"
+      status: SUCCESS
+      transactionRef: "REF-20260624-0001"
+      merchantCode: "MERC123"
+
+  NotificationResponse:
+    type: object
+    properties:
+      acknowledged:
+        type: boolean
+        description: Indicates whether the notification was accepted.
+      message:
+        type: string
+        description: Human-readable confirmation message.
+      correlationId:
+        type: string
+        description: Identifier used to correlate the response with the original request.
+      processedAt:
+        type: string
+        description: ISO 8601 timestamp when the notification was processed.
+    example:
+      acknowledged: true
+      message: "Payment notification processed successfully."
+      correlationId: "CORR-20260624-7890"
+      processedAt: "2026-06-24T12:35:02Z"
+
+  ErrorResponse:
+    type: object
+    properties:
+      errorCode:
+        type: string
+        description: Short machine-readable error code.
+      errorMessage:
+        type: string
+        description: Detailed error description.
+      timestamp:
+        type: string
+        description: ISO 8601 timestamp when the error occurred.
+    example:
+      errorCode: "INVALID_PAYLOAD"
+      errorMessage: "The request body is missing required fields."
+      timestamp: "2026-06-24T12:34:57Z"
+
+/notifications:
+  /success:
+    post:
+      description: Receive successful M-Pesa STK push notifications.
+      body:
+        application/json:
+          type: PaymentNotification
+      responses:
+        200:
+          description: Notification accepted and processed.
+          body:
+            application/json:
+              type: NotificationResponse
+        400:
+          description: Invalid request payload.
+          body:
+            application/json:
+              type: ErrorResponse
+        500:
+          description: Server error while processing the notification.
+          body:
+            application/json:
+              type: ErrorResponse
+
+  /failure:
+    post:
+      description: Receive failed M-Pesa STK push notifications.
+      body:
+        application/json:
+          type: PaymentNotification
+      responses:
+        200:
+          description: Failed payment notification accepted for reporting.
+          body:
+            application/json:
+              type: NotificationResponse
+        400:
+          description: Invalid request payload.
+          body:
+            application/json:
+              type: ErrorResponse
+        500:
+          description: Server error while processing the notification.
+          body:
+            application/json:
+              type: ErrorResponse
+
+  /{transactionId}:
+    uriParameters:
+      transactionId:
+        type: string
+        description: Unique identifier for the M-Pesa transaction.
+    get:
+      description: Get notification details by transaction ID.
+      responses:
+        200:
+          description: Notification details returned successfully.
+          body:
+            application/json:
+              type: PaymentNotification
+        404:
+          description: Notification not found for the specified transaction ID.
+          body:
+            application/json:
+              type: ErrorResponse
+        500:
+          description: Server error while retrieving the notification.
+          body:
+            application/json:
+              type: ErrorResponse
+
+/health:
+  get:
+    description: API health check endpoint.
+    responses:
+      200:
+        description: Health status returned.
+        body:
+          application/json:
+            type: object
+            properties:
+              status:
+                type: string
+              timestamp:
+                type: string
+            example:
+              status: "UP"
+              timestamp: "2026-06-24T12:35:00Z"

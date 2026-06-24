@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+        http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http
+        http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/mule-apikit
+        http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+        http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- GLOBAL CONFIG                                   -->
+    <!-- ═══════════════════════════════════════════════ -->
+
+    <http:listener-config name="HTTP_Listener_config"
+        doc:name="HTTP Listener config">
+        <http:listener-connection host="0.0.0.0" port="${http.port}" />
+    </http:listener-config>
+
+    <apikit:config
+        name="api-config"
+        raml="api/payments-notification-api.raml"
+        outboundHeadersMapName="outboundHeaders"
+        httpStatusVarName="httpStatus"
+        doc:name="APIKit config" />
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- MAIN FLOW                                       -->
+    <!-- ═══════════════════════════════════════════════ -->
+
+    <flow name="mpesa-payment-api-main">
+        <http:listener
+            config-ref="HTTP_Listener_config"
+            path="/api/*"
+            doc:name="HTTP Listener">
+            <http:response
+                statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response
+                statusCode="#[vars.httpStatus default 500]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router
+            config-ref="api-config"
+            doc:name="APIkit Router" />
+        <error-handler>
+            <on-error-propagate
+                type="APIKIT:NOT_FOUND"
+                doc:name="Not Found">
+                <ee:transform doc:name="404 Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "NOT_FOUND",
+    errorMessage: "Resource not found",
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[404]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate
+                type="APIKIT:METHOD_NOT_ALLOWED"
+                doc:name="Method Not Allowed">
+                <ee:transform doc:name="405 Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "METHOD_NOT_ALLOWED",
+    errorMessage: "HTTP method not allowed for this resource",
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[405]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate
+                type="APIKIT:BAD_REQUEST"
+                doc:name="Bad Request">
+                <ee:transform doc:name="400 Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "BAD_REQUEST",
+    errorMessage: "The request could not be understood by the server",
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[400]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate
+                type="ANY"
+                doc:name="Server Error">
+                <ee:transform doc:name="500 Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "SERVER_ERROR",
+    errorMessage: "An unexpected error occurred",
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[500]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- POST /notifications/success                     -->
+    <!-- ═══════════════════════════════════════════════ -->
+
+    <flow name="post:\notifications\success:api-config">
+        <logger
+            message="#['[SUCCESS] Received: ' ++ (payload.transactionId default 'unknown')]"
+            level="INFO"
+            doc:name="Log Incoming" />
+        <set-variable
+            variableName="correlationId"
+            value="#[uuid()]"
+            doc:name="Set Correlation ID" />
+        <choice doc:name="Validate Payload">
+            <when expression="#[payload.transactionId == null or payload.transactionId == '']">
+                <ee:transform doc:name="400 Validation Error">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "VALIDATION_ERROR",
+    errorMessage: "transactionId is required",
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[400]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </when>
+            <otherwise>
+                <ee:transform doc:name="Success Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    acknowledged: true,
+    message: "Payment success notification recorded",
+    correlationId: vars.correlationId,
+    transactionId: payload.transactionId,
+    processedAt: now() as String { format: "yyyy-MM-dd'T'HH:mm:ss'Z'" }
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[200]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+                <logger
+                    message="#['[SUCCESS] Processed OK: ' ++ payload.transactionId]"
+                    level="INFO"
+                    doc:name="Log Success" />
+            </otherwise>
+        </choice>
+        <error-handler>
+            <on-error-propagate type="ANY" doc:name="Success Flow Error">
+                <ee:transform doc:name="500 Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "SERVER_ERROR",
+    errorMessage: error.description,
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[500]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- POST /notifications/failure                     -->
+    <!-- ═══════════════════════════════════════════════ -->
+
+    <flow name="post:\notifications\failure:api-config">
+        <logger
+            message="#['[FAILURE] Received: ' ++ (payload.transactionId default 'unknown')]"
+            level="INFO"
+            doc:name="Log Incoming" />
+        <set-variable
+            variableName="correlationId"
+            value="#[uuid()]"
+            doc:name="Set Correlation ID" />
+        <ee:transform doc:name="Failure Response">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    acknowledged: true,
+    message: "Payment failure notification recorded",
+    correlationId: vars.correlationId,
+    transactionId: payload.transactionId,
+    processedAt: now() as String { format: "yyyy-MM-dd'T'HH:mm:ss'Z'" }
+}]]></ee:set-payload>
+            </ee:message>
+            <ee:variables>
+                <ee:set-variable variableName="httpStatus"><![CDATA[200]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <logger
+            message="#['[FAILURE] Processed OK: ' ++ payload.transactionId]"
+            level="INFO"
+            doc:name="Log Processed" />
+        <error-handler>
+            <on-error-propagate type="ANY" doc:name="Failure Flow Error">
+                <ee:transform doc:name="500 Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "SERVER_ERROR",
+    errorMessage: error.description,
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[500]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- GET /health                                     -->
+    <!-- ═══════════════════════════════════════════════ -->
+
+    <flow name="get:\health:api-config">
+        <ee:transform doc:name="Health Response">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    status: "UP",
+    app: "mpesa-payment-api",
+    version: "1.0.0",
+    timestamp: now() as String { format: "yyyy-MM-dd'T'HH:mm:ss'Z'" }
+}]]></ee:set-payload>
+            </ee:message>
+            <ee:variables>
+                <ee:set-variable variableName="httpStatus"><![CDATA[200]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <error-handler>
+            <on-error-propagate type="ANY" doc:name="Health Error">
+                <ee:transform doc:name="500 Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "SERVER_ERROR",
+    errorMessage: error.description,
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[500]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- GET /notifications/{transactionId}              -->
+    <!-- ═══════════════════════════════════════════════ -->
+
+    <flow name="get:\notifications\(transactionId):api-config">
+        <logger
+            message="#['[LOOKUP] Transaction: ' ++ attributes.uriParams.transactionId]"
+            level="INFO"
+            doc:name="Log Lookup" />
+        <set-variable
+            variableName="txnId"
+            value="#[attributes.uriParams.transactionId]"
+            doc:name="Set Transaction ID" />
+        <ee:transform doc:name="Lookup Response">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    transactionId: vars.txnId,
+    status: "SUCCESS",
+    amount: 500,
+    phoneNumber: "+254712345678",
+    merchantCode: "DEMO001",
+    timestamp: now() as String { format: "yyyy-MM-dd'T'HH:mm:ss'Z'" }
+}]]></ee:set-payload>
+            </ee:message>
+            <ee:variables>
+                <ee:set-variable variableName="httpStatus"><![CDATA[200]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <error-handler>
+            <on-error-propagate type="ANY" doc:name="Lookup Error">
+                <ee:transform doc:name="500 Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    errorCode: "SERVER_ERROR",
+    errorMessage: error.description,
+    timestamp: now() as String
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[500]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+
+</mule>
