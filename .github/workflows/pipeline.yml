@@ -164,15 +164,19 @@ jobs:
 
       - name: Deploy to CloudHub 2.0
         run: |
-          mvn clean package mule:deploy -DskipTests \
+          mvn mule:deploy -DskipTests \
             -Danypoint.username=${{ secrets.ANYPOINT_USERNAME }} \
             -Danypoint.password=${{ secrets.ANYPOINT_PASSWORD }} \
-            -Dcloudhub2.applicationName=payments-notification-api \
-            -Dcloudhub2.target=Cloudhub-US-East-1 \
-            -Dcloudhub2.muleVersion=4.6.28 \
-            -Dcloudhub2.environment=Sandbox \
-            -Dcloudhub2.replicas=1 \
-            -Dcloudhub2.replicaSize=0.1 \
+            -Dmule.artifact=target/payments-notification-api-1.0.0-SNAPSHOT-mule-application.jar \
+            -DcloudHub2Deployment.uri=https://anypoint.mulesoft.com \
+            -DcloudHub2Deployment.provider=MC \
+            -DcloudHub2Deployment.environment=Sandbox \
+            -DcloudHub2Deployment.target=Cloudhub-US-East-1 \
+            -DcloudHub2Deployment.applicationName=payments-notification-api \
+            -DcloudHub2Deployment.muleVersion=4.6.28 \
+            -DcloudHub2Deployment.replicas=1 \
+            -DcloudHub2Deployment.replicaSize=0.1 \
+            -DcloudHub2Deployment.businessGroupId=${{ secrets.ANYPOINT_ORG_ID }} \
             --no-transfer-progress
 
       - name: Wait for app to start
