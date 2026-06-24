@@ -182,7 +182,7 @@ jobs:
 
       - name: Wait for app to start
         run: |
-          echo "Waiting 90 seconds for CloudHub to start the app..."
+          echo "Waiting 90 seconds for CloudHub to start..."
           sleep 90
 
       - name: Health Check
@@ -208,8 +208,7 @@ jobs:
         run: |
           APP_URL="https://payments-notification-api.us-e1.cloudhub.io"
 
-          HEALTH=$(curl -s --max-time 30 \
-            "$APP_URL/api/health" \
+          HEALTH=$(curl -s --max-time 30 "$APP_URL/api/health" \
             || echo '{"status":"UNREACHABLE"}')
 
           SUCCESS=$(curl -s --max-time 30 \
@@ -225,11 +224,10 @@ jobs:
             }' || echo '{"error":"unreachable"}')
 
           echo "Health: $HEALTH"
-          echo "Success endpoint: $SUCCESS"
+          echo "Success: $SUCCESS"
 
           PROMPT="Verify these M-Pesa API responses look correct.
-          Health: $HEALTH
-          Success endpoint: $SUCCESS
+          Health: $HEALTH  Success: $SUCCESS
           Reply PASS if both correct, FAIL with reason if not."
 
           AI=$(curl -s https://api.openai.com/v1/chat/completions \

@@ -15,9 +15,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <app.runtime>4.6.28</app.runtime>
-        <mule.maven.plugin.version>4.8.0</mule.maven.plugin.version>
+        <mule.maven.plugin.version>4.4.0</mule.maven.plugin.version>
         <munit.version>2.3.15</munit.version>
-        <!-- CloudHub 2.0 deployment properties — overridden by pipeline -->
         <anypoint.username/>
         <anypoint.password/>
         <anypoint.org.id>3cd022dd-275d-4122-b586-529e6a87d319</anypoint.org.id>
@@ -37,18 +36,22 @@
                 <version>${mule.maven.plugin.version}</version>
                 <extensions>true</extensions>
                 <configuration>
-                    <cloudHub2Deployment>
+                    <classifier>mule-application</classifier>
+                    <skip>false</skip>
+                    <redeploy>true</redeploy>
+                    <!-- lowercase cloudhub2Deployment — correct for 4.x -->
+                    <cloudhub2Deployment>
                         <uri>https://anypoint.mulesoft.com</uri>
                         <provider>MC</provider>
                         <environment>Sandbox</environment>
                         <target>Cloudhub-US-East-1</target>
                         <applicationName>payments-notification-api</applicationName>
                         <muleVersion>${app.runtime}</muleVersion>
+                        <javaVersion>17</javaVersion>
                         <username>${anypoint.username}</username>
                         <password>${anypoint.password}</password>
                         <businessGroupId>${anypoint.org.id}</businessGroupId>
                         <replicas>1</replicas>
-                        <replicaSize>0.1</replicaSize>
                         <vCores>0.1</vCores>
                         <deploymentSettings>
                             <generateDefaultPublicUrl>true</generateDefaultPublicUrl>
@@ -59,7 +62,7 @@
                             <api.version>v1</api.version>
                             <anypoint.env>Sandbox</anypoint.env>
                         </properties>
-                    </cloudHub2Deployment>
+                    </cloudhub2Deployment>
                 </configuration>
             </plugin>
 
