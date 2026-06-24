@@ -78,7 +78,7 @@ jobs:
       - name: Create Maven settings.xml
         run: |
           mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml << 'SETTINGS'
+          cat > ~/.m2/settings.xml << SETTINGS
           <?xml version="1.0" encoding="UTF-8"?>
           <settings>
             <servers>
@@ -102,7 +102,11 @@ jobs:
           SETTINGS
 
       - name: Build application
-        run: mvn clean package -DskipTests --no-transfer-progress
+        run: |
+          mvn clean package -DskipTests \
+            -Danypoint.username=${{ secrets.ANYPOINT_USERNAME }} \
+            -Danypoint.password=${{ secrets.ANYPOINT_PASSWORD }} \
+            --no-transfer-progress
 
       - name: Upload JAR
         uses: actions/upload-artifact@v4
@@ -145,7 +149,7 @@ jobs:
       - name: Create Maven settings.xml
         run: |
           mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml << 'SETTINGS'
+          cat > ~/.m2/settings.xml << SETTINGS
           <?xml version="1.0" encoding="UTF-8"?>
           <settings>
             <servers>
@@ -169,28 +173,11 @@ jobs:
           SETTINGS
 
       - name: Deploy to CloudHub 2.0
-        env:
-          ANYPOINT_USERNAME: ${{ secrets.ANYPOINT_USERNAME }}
-          ANYPOINT_PASSWORD: ${{ secrets.ANYPOINT_PASSWORD }}
-          ANYPOINT_ORG_ID: ${{ secrets.ANYPOINT_ORG_ID }}
         run: |
-          JAR_FILE=$(ls target/*.jar | head -1)
-          echo "Deploying: $JAR_FILE"
-
           mvn mule:deploy \
-            -DmuleDeploy \
-            -Danypoint.username=${ANYPOINT_USERNAME} \
-            -Danypoint.password=${ANYPOINT_PASSWORD} \
-            -DcloudHub2Deployment.uri=https://anypoint.mulesoft.com \
-            -DcloudHub2Deployment.provider=MC \
-            -DcloudHub2Deployment.environment=Sandbox \
-            -DcloudHub2Deployment.target=Cloudhub-US-East-1 \
-            -DcloudHub2Deployment.applicationName=payments-notification-api \
-            -DcloudHub2Deployment.muleVersion=4.6.28 \
-            -DcloudHub2Deployment.replicas=1 \
-            -DcloudHub2Deployment.replicaSize=0.1 \
-            -DcloudHub2Deployment.businessGroupId=${ANYPOINT_ORG_ID} \
-            -DcloudHub2Deployment.artifact=${JAR_FILE} \
+            -Danypoint.username=${{ secrets.ANYPOINT_USERNAME }} \
+            -Danypoint.password=${{ secrets.ANYPOINT_PASSWORD }} \
+            -Danypoint.org.id=${{ secrets.ANYPOINT_ORG_ID }} \
             --no-transfer-progress
 
       - name: Wait for app to start
@@ -264,6 +251,5 @@ jobs:
           echo "✅ Deployment Complete!"
           echo "App:    payments-notification-api"
           echo "Env:    CloudHub 2.0 Sandbox"
-          echo "URL:    https://payments-notification-api.us-e1.cloudhub.io"
           echo "Health: https://payments-notification-api.us-e1.cloudhub.io/api/health"
           echo "================================================"
